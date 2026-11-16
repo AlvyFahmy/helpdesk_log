@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Helpdesk Log Summary — Raw Data & Helper Columns</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" onerror="this.onerror=null;this.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';"></script>
+<style>
+:root{--ink:#172033;--muted:#667085;--line:#e4e8ef;--bg:#f4f6fa;--blue:#315bd6;--green:#087443;--red:#b42318}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:13px/1.5 Inter,Arial,sans-serif}
+header{background:#14213d;color:white;padding:22px 26px}header h1{margin:0 0 4px;font-size:21px}header p{margin:0;color:#c7d2e5;font-size:12px}
+main{padding:20px;max-width:1900px;margin:auto}.layout{display:grid;grid-template-columns:310px minmax(0,1fr);gap:18px;align-items:start}.sidebar{position:sticky;top:14px}.dashboard{min-width:0}.panel{background:#fff;border:1px solid var(--line);border-radius:12px;padding:17px;margin-bottom:16px;box-shadow:0 3px 14px #1720330a}
+.upload{display:flex;gap:10px;align-items:flex-start;flex-direction:column}.upload input{max-width:100%;width:100%}.chartgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.chartbox{border:1px solid var(--line);border-radius:10px;padding:12px;min-width:0}.chartbox h3{font-size:12px;margin:0 0 8px}.chartbox svg{width:100%;height:auto;display:block}.low-activity{background:#ffe4ec!important;color:#9f1239;font-weight:800} .empty{border:1px dashed #cbd5e1;border-radius:12px;padding:42px 20px;text-align:center;color:#667085;background:#fff}.empty strong{display:block;color:#344054;font-size:16px;margin-bottom:6px}button{border:0;border-radius:8px;background:var(--blue);color:white;padding:9px 13px;font-weight:700;cursor:pointer}button:disabled{opacity:.45;cursor:not-allowed}.secondary{background:#fff;color:#344054;border:1px solid var(--line)}
+.status{font-size:12px;color:var(--muted);margin-top:10px}.rules{font-size:12px;color:#475467;line-height:1.8}.rules b{color:#1d2939}
+.metrics{display:grid;grid-template-columns:repeat(5,minmax(130px,1fr));gap:10px}.metric{border:1px solid var(--line);border-radius:10px;padding:12px}.metric span{display:block;color:var(--muted);font-size:11px}.metric strong{display:block;font-size:21px;margin-top:4px}
+.filters{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.filters label{font-size:11px;color:var(--muted)}input[type=date]{padding:7px;border:1px solid var(--line);border-radius:7px}
+.tablewrap{overflow:auto;max-height:65vh;border:1px solid var(--line);border-radius:8px}table{border-collapse:separate;border-spacing:0;white-space:nowrap;font-size:11px;width:max-content;min-width:100%}th,td{padding:7px 9px;border-bottom:1px solid #edf0f4;text-align:left;max-width:280px;overflow:hidden;text-overflow:ellipsis}th{position:sticky;top:0;background:#f1f4f9;z-index:2;color:#475467;font-weight:800}tbody tr:hover{background:#f8faff}.pill{display:inline-block;border-radius:20px;padding:2px 8px;font-size:10px;font-weight:700}.sc{background:#e8f5ee;color:#087443}.uc{background:#fdecec;color:#b42318}.uv{background:#fff4df;color:#9a6700}
+h2{font-size:15px;margin:0 0 5px}.desc{font-size:11px;color:var(--muted);margin:0 0 12px}
+@media(max-width:1000px){.layout{grid-template-columns:1fr}.sidebar{position:static}.chartgrid{grid-template-columns:1fr}}@media(max-width:800px){main{padding:10px}.metrics{grid-template-columns:repeat(2,1fr)}header{padding:18px}}
+</style></head>
+<body>
+<header><h1>Helpdesk Log Summary — Raw Data & Helper Columns</h1><p>Tahap 1 • Sumber hanya Helpdesk Log Summary • Tanpa data Customer Freeze / Customer Status</p></header>
+<main>
+<div class="layout">
+ <aside class="sidebar">
+  <section class="panel">
+   <h2>Konfigurasi & Upload</h2><p class="desc">Upload file Helpdesk Log Summary, lalu proses untuk menampilkan dashboard di panel utama.</p>
+   <div class="upload"><input id="file" type="file" accept=".xlsx,.xls,.xlsm"><button id="process" disabled>Proses Dashboard</button><button id="export" class="secondary" disabled>Download Summary + Raw Data</button></div>
+   <div id="status" class="status">Belum ada file dipilih.</div>
+  </section>
+  <section class="panel">
+   <h2>Aturan Filter Tahap 1</h2>
+   <div class="rules">• <b>Log Is Created From:</b> hanya Inbound Call dan Outgoing Call.<br>• <b>Service Type:</b> diawali CBN Fiber atau Directnet = Include.<br>• Service Type lainnya = Exclude.<br>• Mengandung <b>(IDM)</b> = Exclude.<br>• Seluruh kolom raw dipertahankan; helper ditambahkan di sebelah kanan.</div>
+  </section>
+ </aside>
+ <div class="dashboard">
+  <section id="welcome" class="empty"><strong>Dashboard Helpdesk belum ditampilkan</strong>Upload file di panel konfigurasi, lalu klik <b>Proses Dashboard</b>. Hasil analisis, grafik, dan laporan akan tampil di area ini.</section>
+  <section id="summary" class="panel" hidden><h2>Ringkasan Hasil Filter</h2><p class="desc">Activity unik per Creator + Customer ID + tanggal. Global unique per Customer ID + tanggal lintas Agent, dengan prioritas SC.</p><div id="metrics" class="metrics"></div></section>
+  <section id="filters" class="panel" hidden><div class="filters"><b>Filter tanggal Created Time</b><label>Dari <input id="from" type="date"></label><label>Sampai <input id="to" type="date"></label><button id="reset" class="secondary">Reset</button><span id="period" class="status"></span></div></section>
+  <section id="charts" class="panel" hidden><h2>Grafik Performa</h2><p class="desc">Grafik mengikuti periode tanggal yang dipilih.</p><div class="chartgrid"><div class="chartbox"><h3>Total Activity Call per Hari</h3><div id="activityChart"></div></div><div class="chartbox"><h3>Global Connection Rate per Hari</h3><div id="rateChart"></div></div></div></section>
+  <section id="daily" class="panel" hidden><h2>Daily Activity per Agent</h2><p class="desc">Activity unik per Agent per tanggal. Sel dengan activity kurang dari 100 diberi background pink.</p><div id="dailyTable" class="tablewrap"></div></section>
+  <section id="global" class="panel" hidden><h2>Global Unique SC / UC</h2><p class="desc">Satu Customer ID hanya dihitung sekali per hari lintas Agent. Jika pada hari yang sama ada SC dan UC, SC diprioritaskan.</p><div id="globalTable" class="tablewrap"></div></section>
+  <section id="detail" class="panel" hidden><h2>Raw Data Filtered + Kolom Bantu</h2><p class="desc">Preview dibatasi 300 baris; file download memuat seluruh data hasil filter sesuai periode.</p><div id="detailInfo" class="status"></div><div id="detailTable" class="tablewrap"></div></section>
+ </div>
+</div>
+</main>
+<script>
+const UC=new Set(["mailbox","busy","no pickup phone","no pick up phone","divert","invalid number"]);
+const $=id=>document.getElementById(id), norm=v=>String(v??"").trim().toLowerCase();
+let wb=null, model=null;
+function esc(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+function fmt(v){return Number(v||0).toLocaleString("id-ID");}
+function dateKey(v){
+ if(v instanceof Date&&!isNaN(v))return `${v.getFullYear()}-${String(v.getMonth()+1).padStart(2,"0")}-${String(v.getDate()).padStart(2,"0")}`;
+ if(typeof v==="number"&&window.XLSX){let d=XLSX.SSF.parse_date_code(v);if(d)return `${d.y}-${String(d.m).padStart(2,"0")}-${String(d.d).padStart(2,"0")}`;}
+ let s=String(v??"").trim();if(!s)return "";
+ let m=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+ if(m){let a=+m[1],b=+m[2],day,mon;if(a>12){day=a;mon=b}else if(b>12){mon=a;day=b}else{day=a;mon=b}return `${m[3]}-${String(mon).padStart(2,"0")}-${String(day).padStart(2,"0")}`;}
+ let d=new Date(s);return isNaN(d)?"":`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
+function response(root){let r=norm(root);if(!r)return "Unverified";return UC.has(r)?"Unsuccess Call":"Success Call";}
+function isIncludedService(v){let s=norm(v);if(s.includes("(idm)"))return false;return s.startsWith("cbn fiber")||s.startsWith("directnet");}
+$("file").addEventListener("change",async e=>{let f=e.target.files[0];if(!f)return;$("status").textContent="Membaca file…";try{if(typeof XLSX==="undefined")throw Error("Library pembaca Excel belum berhasil dimuat. Pastikan internet aktif, lalu buka ulang dashboard.");let b=await f.arrayBuffer();wb=XLSX.read(b,{type:"array",cellDates:true});$("process").disabled=false;$("status").textContent=`File siap: ${f.name} • Sheet: ${wb.SheetNames.join(", ")}`;}catch(err){$("status").textContent="Gagal membaca file: "+err.message;wb=null;$("process").disabled=true;}});
+$("process").addEventListener("click",()=>{
+ try{
+  if(typeof XLSX==="undefined")throw Error("Library pembaca Excel tidak tersedia. Pastikan perangkat terhubung ke internet dan refresh dashboard.");
+  if(!wb)throw Error("Upload file terlebih dahulu.");
+  let sheet=wb.SheetNames.find(n=>/helpdesk/i.test(n))||wb.SheetNames[0], rows=XLSX.utils.sheet_to_json(wb.Sheets[sheet],{header:1,defval:"",raw:true});
+  let required=["Customer ID","Creator","Created Time","Root Cause","Log Is Created From","Service Type"], headerAt=-1, headers=[];
+  for(let i=0;i<Math.min(rows.length,30);i++){let h=(rows[i]||[]).map(v=>String(v??"").trim());if(required.every(k=>h.includes(k))){headerAt=i;headers=h;break;}}
+  if(headerAt<0)throw Error("Header wajib tidak ditemukan: "+required.join(", "));
+  let ix=Object.fromEntries(headers.map((h,i)=>[h,i])), rawRows=[], excludedSource=0,excludedService=0,excludedIDM=0,invalid=0;
+  for(let i=headerAt+1;i<rows.length;i++){
+   let row=rows[i]||[], src=norm(row[ix["Log Is Created From"]]);
+   if(src!=="inbound call"&&src!=="outgoing call"){excludedSource++;continue;}
+   let st=String(row[ix["Service Type"]]??"").trim(), stn=norm(st);
+   if(stn.includes("(idm)")){excludedIDM++;continue;}
+   if(!stn.startsWith("cbn fiber")&&!stn.startsWith("directnet")){excludedService++;continue;}
+   let cid=String(row[ix["Customer ID"]]??"").trim(),agent=String(row[ix["Creator"]]??"").trim(),day=dateKey(row[ix["Created Time"]]);
+   if(!cid||!agent||!day){invalid++;continue;}
+   let obj={};headers.forEach((h,j)=>{if(h)obj[h]=row[j]??"";});
+   rawRows.push({obj,cid,agent,day,root:row[ix["Root Cause"]],source:src,service:st});
+  }
+  if(!rawRows.length)throw Error("Tidak ada data yang lolos filter.");
+  // Retention flag within same agent + customer.
+  let retentionSet=new Set(rawRows.filter(x=>norm(x.root)==="rentention successful").map(x=>x.agent+"¦"+x.cid));
+  // Activity unique per agent + customer + day; retain first source row for the activity key.
+  let activityMap=new Map();
+  for(let x of rawRows){let key=[x.agent,x.cid,x.day].join("¦");if(!activityMap.has(key))activityMap.set(key,{...x,key,response:response(x.root)});}
+  // Global unique per customer + date, SC wins when any eligible SC exists.
+  let globalMap=new Map();
+  for(let x of rawRows){let key=x.cid+"¦"+x.day, r=response(x.root);if(!globalMap.has(key))globalMap.set(key,{cid:x.cid,day:x.day,status:r});else if(r==="Success Call")globalMap.get(key).status="Success Call";else if(r==="Unsuccess Call"&&globalMap.get(key).status==="Unverified")globalMap.get(key).status="Unsuccess Call";}
+  let helpers=["Activity Date","Concate","Respons Call","Check - App Closing","Retention"];
+  let detail=rawRows.map(x=>{
+   let root=norm(x.root), resp=response(x.root), assign=norm(x.obj["Assigned To"]);
+   let key=[x.agent,x.cid,x.day].join("¦");
+   return {...x.obj,
+    "Activity Date":x.day,
+    "Concate":`${x.day}|${x.agent}|${x.cid}`,
+    "Respons Call":resp,
+    "Check - App Closing":assign.includes("app - closing")&&root!=="rentention successful"?"Yes":"No",
+    "Retention":retentionSet.has(x.agent+"¦"+x.cid)?"Rentention Successful":""
+   };
+  });
+  model={headers:[...headers,...helpers.filter(h=>!headers.includes(h))],rawRows,detail,activity:[...activityMap.values()],global:[...globalMap.values()],excludedSource,excludedService,excludedIDM,invalid,sheet};
+  $("welcome").hidden=true;$("summary").hidden=$("filters").hidden=$("charts").hidden=$("daily").hidden=$("global").hidden=$("detail").hidden=false;
+  $("metrics").innerHTML=[
+   ["Raw rows lolos filter",rawRows.length],["Unique Activity",activityMap.size],["Global Unique SC",[...globalMap.values()].filter(x=>x.status==="Success Call").length],["Global Unique UC",[...globalMap.values()].filter(x=>x.status==="Unsuccess Call").length],["Global Unverified",[...globalMap.values()].filter(x=>x.status==="Unverified").length]
+  ].map(([k,v])=>`<div class="metric"><span>${k}</span><strong>${fmt(v)}</strong></div>`).join("");
+  let days=[...new Set(rawRows.map(x=>x.day))].sort();$("from").value=days[0];$("to").value=days[days.length-1];
+  render();
+  $("status").textContent=`Selesai dari sheet "${sheet}" (header baris ${headerAt+1}). Lolos: ${fmt(rawRows.length)} • Exclude source: ${fmt(excludedSource)} • Exclude Service Type lain: ${fmt(excludedService)} • Exclude (IDM): ${fmt(excludedIDM)} • Data tanpa Customer/Agent/tanggal: ${fmt(invalid)}.`;
+  $("export").disabled=false;
+ }catch(e){$("status").textContent="Gagal memproses: "+e.message;console.error(e);}
+});
+function render(){
+ if(!model)return;
+ let from=$("from").value,to=$("to").value;
+ let rows=model.rawRows.filter(x=>(!from||x.day>=from)&&(!to||x.day<=to));
+ let actMap=new Map();
+ for(let x of rows){let k=x.agent+"¦"+x.cid+"¦"+x.day;if(!actMap.has(k))actMap.set(k,{...x,response:response(x.root)});}
+ let agents=[...new Set([...actMap.values()].map(x=>x.agent))].sort((a,b)=>a.localeCompare(b,"id")),days=[...new Set(rows.map(x=>x.day))].sort();
+ let daily=agents.map(a=>{let vals=days.map(d=>[...actMap.values()].filter(x=>x.agent===a&&x.day===d).length);return `<tr><td>${esc(a)}</td>${vals.map(v=>`<td class="${v<100?"low-activity":""}" title="${v<100?"Di bawah target 100 activity":""}">${fmt(v)}</td>`).join("")}<td><b>${fmt(vals.reduce((s,v)=>s+Number(v||0),0))}</b></td></tr>`;});
+ let totals=days.map(d=>[...actMap.values()].filter(x=>x.day===d).length);
+ daily.push(`<tr><td><b>TOTAL</b></td>${totals.map(v=>`<td><b>${fmt(v)}</b></td>`).join("")}<td><b>${fmt(totals.reduce((a,b)=>a+b,0))}</b></td></tr>`);
+ $("dailyTable").innerHTML=`<table><thead><tr><th>Agent</th>${days.map(d=>`<th>${d}</th>`).join("")}<th>Total</th></tr></thead><tbody>${daily.join("")}</tbody></table>`;
+ let gm=new Map();for(let x of rows){let k=x.cid+"¦"+x.day,r=response(x.root);if(!gm.has(k))gm.set(k,{day:x.day,status:r});else if(r==="Success Call")gm.get(k).status=r;else if(r==="Unsuccess Call"&&gm.get(k).status==="Unverified")gm.get(k).status=r;}
+ let gr=days.map(d=>{let v=[...gm.values()].filter(x=>x.day===d),sc=v.filter(x=>x.status==="Success Call").length,uc=v.filter(x=>x.status==="Unsuccess Call").length,uv=v.filter(x=>x.status==="Unverified").length;return `<tr><td>${d}</td><td>${fmt(sc)}</td><td>${fmt(uc)}</td><td>${fmt(uv)}</td><td>${fmt(sc+uc)}</td><td>${((sc+uc)?(100*sc/(sc+uc)):0).toFixed(2).replace(".",",")}%</td></tr>`;});
+ $("globalTable").innerHTML=`<table><thead><tr><th>Activity Date</th><th>Global Unique SC</th><th>Global Unique UC</th><th>Global Unverified</th><th>Unique SC + UC</th><th>Connection Rate</th></tr></thead><tbody>${gr.join("")}</tbody></table>`;
+ // Compact inline SVG charts; no chart library dependency.
+ let chartData=days.map(d=>{let activity=[...actMap.values()].filter(x=>x.day===d).length;let v=[...gm.values()].filter(x=>x.day===d),sc=v.filter(x=>x.status==="Success Call").length,uc=v.filter(x=>x.status==="Unsuccess Call").length;return {day:d,activity,rate:(sc+uc)?100*sc/(sc+uc):0};});
+ function barChart(data,key,suffix="",maxOverride=null){let w=720,h=230,L=42,R=12,T=12,B=48,plotH=h-T-B,plotW=w-L-R,max=maxOverride??Math.max(1,...data.map(x=>x[key]));let step=plotW/Math.max(1,data.length),bw=Math.min(34,step*.58);let bars=data.map((x,i)=>{let val=x[key],bh=val/max*plotH,xp=L+i*step+(step-bw)/2,yp=T+plotH-bh;return `<rect x="${xp}" y="${yp}" width="${bw}" height="${bh}" rx="3" fill="#5275df"><title>${x.day}: ${val.toFixed(1)}${suffix}</title></rect><text x="${xp+bw/2}" y="${h-25}" text-anchor="middle" font-size="10" fill="#667085">${x.day.slice(5)}</text>`;}).join("");let ticks=[0,.5,1].map(t=>{let y=T+plotH-t*plotH;return `<line x1="${L}" x2="${w-R}" y1="${y}" y2="${y}" stroke="#e8edf4"/><text x="${L-8}" y="${y+4}" text-anchor="end" font-size="10" fill="#667085">${Math.round(max*t)}${suffix}</text>`}).join("");return `<svg viewBox="0 0 ${w} ${h}" role="img">${ticks}${bars}</svg>`;}
+ $("activityChart").innerHTML=barChart(chartData,"activity");$("rateChart").innerHTML=barChart(chartData,"rate","%",100);
+ let filtered=rows.map(x=>{let d=model.detail[model.rawRows.indexOf(x)];return d;});
+ $("detailInfo").textContent=`${fmt(filtered.length)} baris pada periode terpilih. Total seluruh periode: ${fmt(model.detail.length)} baris.`;
+ $("detailTable").innerHTML=`<table><thead><tr>${model.headers.map(h=>`<th title="${esc(h)}">${esc(h)}</th>`).join("")}</tr></thead><tbody>${filtered.slice(0,300).map(r=>`<tr>${model.headers.map(h=>`<td title="${esc(r[h] instanceof Date?String(r[h]):r[h]??"")}">${esc(r[h] instanceof Date?dateKey(r[h]):r[h]??"")}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+ $("period").textContent=days.length?`${days[0]} — ${days[days.length-1]}`:"Tidak ada data";
+}
+$("from").addEventListener("change",render);$("to").addEventListener("change",render);
+$("reset").addEventListener("click",()=>{if(!model)return;let d=model.rawRows.map(x=>x.day).sort();$("from").value=d[0];$("to").value=d[d.length-1];render();});
+$("export").addEventListener("click",()=>{
+ if(!model)return;
+ let from=$("from").value,to=$("to").value;
+ let rows=model.rawRows.filter(x=>(!from||x.day>=from)&&(!to||x.day<=to));
+ let detail=rows.map(x=>model.detail[model.rawRows.indexOf(x)]);
+ // Global unique: one record per Customer ID + date; SC always wins over UC/Unverified.
+ let gm=new Map();
+ for(let x of rows){let k=x.cid+"¦"+x.day,r=response(x.root);if(!gm.has(k))gm.set(k,{cid:x.cid,day:x.day,status:r});else if(r==="Success Call")gm.get(k).status="Success Call";else if(r==="Unsuccess Call"&&gm.get(k).status==="Unverified")gm.get(k).status="Unsuccess Call";}
+ let days=[...new Set(rows.map(x=>x.day))].sort();
+ let activity=new Map();
+ for(let x of rows){let k=x.agent+"¦"+x.cid+"¦"+x.day;if(!activity.has(k))activity.set(k,x);}
+ let agents=[...new Set([...activity.values()].map(x=>x.agent))].sort((a,b)=>a.localeCompare(b,"id"));
+ let dailyAOA=[["Agent",...days,"Total"]];
+ for(let a of agents){let vals=days.map(d=>[...activity.values()].filter(x=>x.agent===a&&x.day===d).length);dailyAOA.push([a,...vals,vals.reduce((sum,v)=>sum+v,0)]);}
+ dailyAOA.push(["TOTAL",...days.map(d=>[...activity.values()].filter(x=>x.day===d).length),activity.size]);
+ let globalAOA=[["Activity Date","Global Unique SC","Global Unique UC","Global Unverified","Unique SC + UC","Connection Rate"]];
+ for(let d of days){let v=[...gm.values()].filter(x=>x.day===d),sc=v.filter(x=>x.status==="Success Call").length,uc=v.filter(x=>x.status==="Unsuccess Call").length,uv=v.filter(x=>x.status==="Unverified").length;globalAOA.push([d,sc,uc,uv,sc+uc,(sc+uc)?sc/(sc+uc):0]);}
+ let sc=[...gm.values()].filter(x=>x.status==="Success Call").length,uc=[...gm.values()].filter(x=>x.status==="Unsuccess Call").length,uv=[...gm.values()].filter(x=>x.status==="Unverified").length;
+ let summaryAOA=[["Metric","Value"],["Periode",`${from||"Semua"} s.d. ${to||"Semua"}`],["Raw Data Filtered",rows.length],["Unique Activity",activity.size],["Global Unique SC",sc],["Global Unique UC",uc],["Global Unverified",uv],["Unique SC + UC",sc+uc],["Connection Rate",(sc+uc)?sc/(sc+uc):0]];
+ let out=XLSX.utils.book_new();
+ const add=(name,aoa)=>XLSX.utils.book_append_sheet(out,XLSX.utils.aoa_to_sheet(aoa),name);
+ add("Summary",summaryAOA);add("Daily Activity",dailyAOA);add("Global Unique",globalAOA);
+ let rawAOA=[model.headers,...detail.map(r=>model.headers.map(h=>r[h]??""))];
+ let ws=XLSX.utils.aoa_to_sheet(rawAOA);XLSX.utils.book_append_sheet(out,ws,"Raw + Helper");
+ ["Ticket No","Customer ID","Phone","Mobile No"].forEach(name=>{let c=model.headers.indexOf(name);if(c>=0)for(let r=2;r<=rawAOA.length;r++){let cell=ws[XLSX.utils.encode_cell({r:r-1,c})];if(cell){cell.t="s";cell.v=String(cell.v??"");}}});
+ let rateCell=out.Sheets["Summary"]["B9"];if(rateCell)rateCell.z="0.00%";
+ for(let r=2;r<=globalAOA.length;r++){let cell=out.Sheets["Global Unique"][`F${r}`];if(cell)cell.z="0.00%";}
+ XLSX.writeFile(out,"Helpdesk_Summary_and_Raw_Data.xlsx");
+});
+</script></body></html>
